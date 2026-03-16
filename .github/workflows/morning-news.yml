@@ -39,6 +39,12 @@ jobs:
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           NEWS_COUNTRY: ${{ secrets.NEWS_COUNTRY }}
+          NEWS_COUNTRIES: ${{ secrets.NEWS_COUNTRIES }}
+          NEWS_CATEGORIES: ${{ secrets.NEWS_CATEGORIES }}
+          NEWS_CATEGORY: ${{ secrets.NEWS_CATEGORY }}
+          NEWS_QUERY: ${{ secrets.NEWS_QUERY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python morning_news.py
 
