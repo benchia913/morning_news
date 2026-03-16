@@ -82,10 +82,13 @@ def send_telegram(body: str):
         "parse_mode": "Markdown",
     }
     try:
-        requests.post(url, json=payload, timeout=15)
-    except Exception:
-        # Fail silently so email still goes through
-        pass
+        resp = requests.post(url, json=payload, timeout=15)
+        # Log basic info if Telegram returns an error, so it shows in GitHub Actions logs.
+        if resp.status_code != 200:
+            print("Telegram send failed:", resp.status_code, resp.text)
+    except Exception as e:
+        # Log the exception but don't break the whole job.
+        print("Telegram send exception:", repr(e))
 
 def main():
     # Comma-separated lists allow multiple markets/categories, e.g.:
