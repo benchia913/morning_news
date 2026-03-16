@@ -62,6 +62,31 @@ def send_email(subject: str, body: str):
         server.send_message(msg)
 
 
+def send_telegram(body: str):
+    """
+    Optionally send the summary to a Telegram chat.
+    Requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to be set.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    # Telegram messages are limited in length; trim if very long.
+    max_len = 4000
+    text = body if len(body) <= max_len else body[: max_len - 3] + "..."
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "Markdown",
+    }
+    try:
+        requests.post(url, json=payload, timeout=15)
+    except Exception:
+        # Fail silently so email still goes through
+        pass
+
 def main():
     # Comma-separated lists allow multiple markets/categories, e.g.:
     # NEWS_COUNTRIES="us,sg" and NEWS_CATEGORIES="business,business"
@@ -96,6 +121,7 @@ def main():
     summary = "\n".join(all_sections)
     subject = "Your Morning News Summary"
     send_email(subject, summary)
+    send_telegram(summary)
 
 
 if __name__ == "__main__":
