@@ -79,8 +79,13 @@ def main():
 
     all_sections: list[str] = []
     for idx, (country, category) in enumerate(zip(countries, categories)):
+        # First try with the finance-focused query; if nothing comes back,
+        # fall back to unfiltered top headlines for that country/category.
         articles = fetch_top_headlines(country=country, category=category, query=query)
         header = f"Morning News Summary ({country.upper()} / {category})"
+        if not articles and query:
+            articles = fetch_top_headlines(country=country, category=category, query=None)
+            header = f"Morning News Summary ({country.upper()} / {category}, all topics)"
         section = build_summary(articles, header=header)
         if idx > 0:
             all_sections.append("")  # blank line between sections
