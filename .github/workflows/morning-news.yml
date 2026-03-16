@@ -2,8 +2,14 @@ name: Morning News Summary
 
 on:
   schedule:
-    # 8 AM SGT = 00:00 UTC
-    - cron: "0 0 * * *"
+    # 7:30 AM SGT
+    - cron: "30 23 * * *"
+    # 12:00 PM SGT
+    - cron: "0 4 * * *"
+    # 6:00 PM SGT
+    - cron: "0 10 * * *"
+    # 10:00 PM SGT
+    - cron: "0 14 * * *"
   workflow_dispatch: {}
 
 jobs:
@@ -11,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
