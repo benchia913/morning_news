@@ -6,6 +6,7 @@ from textwrap import shorten
 
 import requests
 import anthropic
+import feedparser
 
 NEWSAPI_URL = "https://newsapi.org/v2/top-headlines"
 
@@ -48,6 +49,38 @@ def build_summary(articles, header: str | None = None):
 
     return "\n".join(lines)
 
+
+def fetch_rss_items():
+    """
+    Optionally fetch richer articles from RSS feeds.
+    RSS_FEEDS should be a comma-separated list of feed URLs.
+    """
+    feeds_raw = os.environ.get("RSS_FEEDS")
+    if not feeds_raw:
+        return []
+
+    urls = [u.strip() for u in feeds_raw.split(",") if u.strip()]
+    items = []
+    for url in urls:
+        try:
+            parsed = feedparser.parse(url)
+            source_title = parsed.feed.get("title", url) if hasattr(parsed, "feed") else url
+            for entry in parsed.entries[:10]:
+                title = entry.get("title", "No title")
+                summary = entry.get("summary", "")
+                link = entry.get("link", "")
+                items.append(
+                    {
+                        "title": title,
+                        "source": {"name": source_title},
+                        "url": link,
+                        "summary": summary,
+                    }
+                )
+        except Exception as e:
+            print("RSS fetch exception for", url, ":", repr(e))
+
+    return items
 
 def summarize_with_claude(raw_text: str, section_label: str) -> str | None:
     """
@@ -186,6 +219,21 @@ def main():
             all_sections.append("")
             all_sections.append("AI Summary (Claude):")
             all_sections.append(claude_summary)
+
+    # Optional extra section built from RSS feeds (richer content)
+    rss_items = fetch_rss_items()
+    if rss_items:
+        all_sections.append("")
+        all_sections.append("-" * 60)
+        all_sections.append("")
+        rss_header = "RSS News Summary"
+        rss_section = build_summary(rss_items, header=rss_header)
+        all_sections.append(rss_section)
+        rss_claude = summarize_with_claude(rss_section, section_label=rss_header)
+        if rss_claude:
+            all_sections.append("")
+            all_sections.append("AI Summary (Claude, RSS):")
+            all_sections.append(rss_claude)
 
     summary = "\n".join(all_sections)
     subject = "Your Morning News Summary"

@@ -38,6 +38,14 @@ In your GitHub repository:
    - `ANTHROPIC_API_KEY`: your Anthropic API key
    - `ANTHROPIC_MODEL`: (optional) e.g. `claude-3-5-sonnet-latest`
 
+6. Optional **RSS feeds for richer content**:
+   - `RSS_FEEDS`: comma-separated list of RSS feed URLs, e.g.
+     - `https://www.reutersagency.com/feed/?best-topics=business-finance`
+     - `https://feeds.a.dj.com/rss/RSSMarketsMain.xml`
+   - The script will pull recent items from these feeds and:
+     - Include them as an extra "RSS News Summary" section
+     - Pass that text through Claude for an additional AI summary if configured
+
 ## Schedule
 
 The workflow file `.github/workflows/morning-news.yml` is configured to run on a daily schedule (in UTC) that corresponds to several SGT times (for example 7:30 AM, 12 PM, 6 PM, 10 PM SGT). You can adjust the `cron` expressions in the `on.schedule` block to change when summaries are sent.
