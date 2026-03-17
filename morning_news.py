@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from textwrap import shorten
 
 import requests
+import anthropic
 
 NEWSAPI_URL = "https://newsapi.org/v2/top-headlines"
 
@@ -63,54 +64,42 @@ def summarize_with_claude(raw_text: str, section_label: str) -> str | None:
     prompt_text = shorten(raw_text, width=6000, placeholder="...")
 
     try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": model,
-                "max_tokens": 600,
-                "temperature": 0.3,
-                "system": (
-                    "You are a calm, expert macro and markets analyst. "
-                    "Given a batch of recent news headlines, you:\n"
-                    "1) Summarize the key themes in global markets and the economy.\n"
-                    "2) Explain the likely implications for major asset classes "
-                    "(equities, rates, FX, credit, commodities) in intuitive terms.\n"
-                    "3) Briefly highlight any useful trading concepts or intuition "
-                    "a discretionary trader should internalize.\n"
-                    "Avoid sensationalism; be concise, concrete, and educational."
-                ),
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": (
-                                    f"Section: {section_label}\n\n"
-                                    "Here is a list of recent news headlines with sources and URLs. "
-                                    "First, summarize the key themes in 3–6 bullet points. "
-                                    "Then add a short 'Market implications' paragraph and "
-                                    "a short 'Trading intuition' paragraph explaining how a "
-                                    "discretionary trader might think about these moves.\n\n"
-                                    f"{prompt_text}"
-                                ),
-                            }
-                        ],
-                    }
-                ],
-            },
-            timeout=40,
+        client = anthropic.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model=model,
+            max_tokens=600,
+            temperature=0.3,
+            system=(
+                "You are a calm, expert macro and markets analyst. "
+                "Given a batch of recent news headlines, you:\n"
+                "1) Summarize the key themes in global markets and the economy.\n"
+                "2) Explain the likely implications for major asset classes "
+                "(equities, rates, FX, credit, commodities) in intuitive terms.\n"
+                "3) Briefly highlight any useful trading concepts or intuition "
+                "a discretionary trader should internalize.\n"
+                "Avoid sensationalism; be concise, concrete, and educational."
+            ),
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                f"Section: {section_label}\n\n"
+                                "Here is a list of recent news headlines with sources and URLs. "
+                                "First, summarize the key themes in 3–6 bullet points. "
+                                "Then add a short 'Market implications' paragraph and "
+                                "a short 'Trading intuition' paragraph explaining how a "
+                                "discretionary trader might think about these moves.\n\n"
+                                f"{prompt_text}"
+                            ),
+                        }
+                    ],
+                }
+            ],
         )
-        resp.raise_for_status()
-        data = resp.json()
-        # Anthropic messages API returns a list of content blocks
-        parts = data.get("content", [])
-        texts = [p.get("text", "") for p in parts if p.get("type") == "text"]
+        texts = [block.text for block in message.content if block.type == "text"]
         content = "\n".join(t.strip() for t in texts if t.strip())
         return content or None
     except Exception as e:
