@@ -84,7 +84,7 @@ def summarize_with_claude(raw_text: str, section_label: str) -> str | None:
         client = anthropic.Anthropic(api_key=api_key)
         message = client.messages.create(
             model=model,
-            max_tokens=600,
+            max_tokens=1_200,
             temperature=0.3,
             system=(
                 "You are a calm, expert macro and markets analyst. "
@@ -187,12 +187,14 @@ def main():
     if rss_items:
         rss_header = "RSS News Summary"
         rss_section = build_summary(rss_items, header=rss_header)
-        all_sections.append(rss_section)
+        # Only include the AI summary in the final message to keep it concise.
         rss_claude = summarize_with_claude(rss_section, section_label=rss_header)
         if rss_claude:
-            all_sections.append("")
-            all_sections.append("AI Summary (Claude, RSS):")
+            all_sections.append(f"{rss_header} – AI Summary (Claude)")
             all_sections.append(rss_claude)
+        else:
+            all_sections.append(rss_header)
+            all_sections.append("No AI summary available today.")
     else:
         all_sections.append("No RSS items found. Please check RSS_FEEDS in your secrets.")
 
