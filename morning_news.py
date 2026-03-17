@@ -8,26 +8,6 @@ import requests
 import anthropic
 import feedparser
 
-NEWSAPI_URL = "https://newsapi.org/v2/top-headlines"
-
-
-def fetch_top_headlines(country: str = "us", page_size: int = 10, category: str | None = None, query: str | None = None):
-    api_key = os.environ["NEWSAPI_KEY"]
-    params = {
-        "apiKey": api_key,
-        "country": country,
-        "pageSize": page_size,
-    }
-    # Filter more towards finance/business headlines
-    if category:
-        params["category"] = category
-    if query:
-        params["q"] = query
-    resp = requests.get(NEWSAPI_URL, params=params, timeout=15)
-    resp.raise_for_status()
-    data = resp.json()
-    return data.get("articles", [])
-
 
 def build_summary(articles, header: str | None = None):
     today = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
@@ -165,67 +145,43 @@ def send_telegram(body: str):
         return
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    # Telegram messages are limited in length; trim if very long.
-    max_len = 4000
-    text = body if len(body) <= max_len else body[: max_len - 3] + "..."
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "Markdown",
-    }
-    try:
-        resp = requests.post(url, json=payload, timeout=15)
-        # Log basic info if Telegram returns an error, so it shows in GitHub Actions logs.
-        if resp.status_code != 200:
-            print("Telegram send failed:", resp.status_code, resp.text)
-    except Exception as e:
-        # Log the exception but don't break the whole job.
-        print("Telegram send exception:", repr(e))
+    max_len = 4000  # Telegram hard limit per message
+
+    # Split into multiple messages if needed
+    chunks: list[str] = []
+    text = body
+    while text:
+        if len(text) <= max_len:
+            chunks.append(text)
+            break
+        # Try to split on a double newline or single newline for readability
+        split_point = text.rfind("\n\n", 0, max_len)
+        if split_point == -1:
+            split_point = text.rfind("\n", 0, max_len)
+        if split_point == -1 or split_point < max_len * 0.5:
+            split_point = max_len
+        chunks.append(text[:split_point].rstrip())
+        text = text[split_point:].lstrip()
+
+    for idx, chunk in enumerate(chunks):
+        payload = {
+            "chat_id": chat_id,
+            "text": chunk,
+            "parse_mode": "Markdown",
+        }
+        try:
+            resp = requests.post(url, json=payload, timeout=15)
+            if resp.status_code != 200:
+                print("Telegram send failed (chunk", idx, "):", resp.status_code, resp.text)
+        except Exception as e:
+            print("Telegram send exception (chunk", idx, "):", repr(e))
 
 def main():
-    # Comma-separated lists allow multiple markets/categories, e.g.:
-    # NEWS_COUNTRIES="us,sg" and NEWS_CATEGORIES="business,business"
-    countries_raw = os.environ.get("NEWS_COUNTRIES") or os.environ.get("NEWS_COUNTRY", "us")
-    categories_raw = os.environ.get("NEWS_CATEGORIES") or os.environ.get("NEWS_CATEGORY", "business")
-
-    countries = [c.strip() for c in countries_raw.split(",") if c.strip()]
-    categories = [c.strip() for c in categories_raw.split(",") if c.strip()]
-
-    # If only one category provided, reuse it for all countries
-    if len(categories) == 1 and len(countries) > 1:
-        categories = categories * len(countries)
-
-    query = os.environ.get("NEWS_QUERY", "markets OR stocks OR finance")
-
     all_sections: list[str] = []
-    for idx, (country, category) in enumerate(zip(countries, categories)):
-        # First try with the finance-focused query; if nothing comes back,
-        # fall back to unfiltered top headlines for that country/category.
-        articles = fetch_top_headlines(country=country, category=category, query=query)
-        header = f"Morning News Summary ({country.upper()} / {category})"
-        if not articles and query:
-            articles = fetch_top_headlines(country=country, category=category, query=None)
-            header = f"Morning News Summary ({country.upper()} / {category}, all topics)"
-        section = build_summary(articles, header=header)
-        if idx > 0:
-            all_sections.append("")  # blank line between sections
-            all_sections.append("-" * 60)
-            all_sections.append("")
-        all_sections.append(section)
 
-        # Optionally add a Claude-generated narrative summary under each section
-        claude_summary = summarize_with_claude(section, section_label=header)
-        if claude_summary:
-            all_sections.append("")
-            all_sections.append("AI Summary (Claude):")
-            all_sections.append(claude_summary)
-
-    # Optional extra section built from RSS feeds (richer content)
+    # Build section purely from RSS feeds (richer content)
     rss_items = fetch_rss_items()
     if rss_items:
-        all_sections.append("")
-        all_sections.append("-" * 60)
-        all_sections.append("")
         rss_header = "RSS News Summary"
         rss_section = build_summary(rss_items, header=rss_header)
         all_sections.append(rss_section)
@@ -234,6 +190,8 @@ def main():
             all_sections.append("")
             all_sections.append("AI Summary (Claude, RSS):")
             all_sections.append(rss_claude)
+    else:
+        all_sections.append("No RSS items found. Please check RSS_FEEDS in your secrets.")
 
     summary = "\n".join(all_sections)
     subject = "Your Morning News Summary"
