@@ -41,7 +41,10 @@ def fetch_rss_items():
         return []
 
     urls = [u.strip() for u in feeds_raw.split(",") if u.strip()]
-    print("RSS_FEEDS urls:", urls)
+    # Hard cap to avoid very long runs if many feeds are configured
+    max_feeds = 10
+    urls = urls[:max_feeds]
+    print("RSS_FEEDS urls (capped):", urls)
     items = []
     for url in urls:
         try:
@@ -49,7 +52,9 @@ def fetch_rss_items():
             entries = getattr(parsed, "entries", [])
             source_title = getattr(parsed, "feed", {}).get("title", url)
             print(f"Parsed RSS url={url!r}, entries={len(entries)}")
-            for entry in entries[:10]:
+            # Cap items per feed to keep Claude context and runtime reasonable
+            max_items_per_feed = 5
+            for entry in entries[:max_items_per_feed]:
                 title = entry.get("title", "No title")
                 summary = entry.get("summary") or entry.get("description", "") or ""
                 link = entry.get("link", "")
