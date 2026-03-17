@@ -167,7 +167,6 @@ def send_telegram(body: str):
         payload = {
             "chat_id": chat_id,
             "text": chunk,
-            "parse_mode": "Markdown",
         }
         try:
             resp = requests.post(url, json=payload, timeout=15)
