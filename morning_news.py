@@ -2,6 +2,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime, timezone
+from textwrap import shorten
 
 import requests
 
@@ -46,6 +47,75 @@ def build_summary(articles, header: str | None = None):
 
     return "\n".join(lines)
 
+
+def summarize_with_claude(raw_text: str, section_label: str) -> str | None:
+    """
+    Optionally send the headlines through Claude for a concise,
+    human-sounding financial summary with market implications.
+    Controlled by ANTHROPIC_API_KEY and ANTHROPIC_MODEL env vars.
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+
+    model = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+    # Trim context to avoid huge payloads
+    prompt_text = shorten(raw_text, width=6000, placeholder="...")
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": model,
+                "max_tokens": 600,
+                "temperature": 0.3,
+                "system": (
+                    "You are a calm, expert macro and markets analyst. "
+                    "Given a batch of recent news headlines, you:\n"
+                    "1) Summarize the key themes in global markets and the economy.\n"
+                    "2) Explain the likely implications for major asset classes "
+                    "(equities, rates, FX, credit, commodities) in intuitive terms.\n"
+                    "3) Briefly highlight any useful trading concepts or intuition "
+                    "a discretionary trader should internalize.\n"
+                    "Avoid sensationalism; be concise, concrete, and educational."
+                ),
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    f"Section: {section_label}\n\n"
+                                    "Here is a list of recent news headlines with sources and URLs. "
+                                    "First, summarize the key themes in 3–6 bullet points. "
+                                    "Then add a short 'Market implications' paragraph and "
+                                    "a short 'Trading intuition' paragraph explaining how a "
+                                    "discretionary trader might think about these moves.\n\n"
+                                    f"{prompt_text}"
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+            timeout=40,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        # Anthropic messages API returns a list of content blocks
+        parts = data.get("content", [])
+        texts = [p.get("text", "") for p in parts if p.get("type") == "text"]
+        content = "\n".join(t.strip() for t in texts if t.strip())
+        return content or None
+    except Exception as e:
+        print("Claude summarize exception:", repr(e))
+        return None
 
 def send_email(subject: str, body: str):
     from_addr = os.environ["EMAIL_USER"]
@@ -120,6 +190,13 @@ def main():
             all_sections.append("-" * 60)
             all_sections.append("")
         all_sections.append(section)
+
+        # Optionally add a Claude-generated narrative summary under each section
+        claude_summary = summarize_with_claude(section, section_label=header)
+        if claude_summary:
+            all_sections.append("")
+            all_sections.append("AI Summary (Claude):")
+            all_sections.append(claude_summary)
 
     summary = "\n".join(all_sections)
     subject = "Your Morning News Summary"
