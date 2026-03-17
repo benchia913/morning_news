@@ -37,17 +37,21 @@ def fetch_rss_items():
     """
     feeds_raw = os.environ.get("RSS_FEEDS")
     if not feeds_raw:
+        print("RSS_FEEDS not set; skipping RSS fetch.")
         return []
 
     urls = [u.strip() for u in feeds_raw.split(",") if u.strip()]
+    print("RSS_FEEDS urls:", urls)
     items = []
     for url in urls:
         try:
             parsed = feedparser.parse(url)
-            source_title = parsed.feed.get("title", url) if hasattr(parsed, "feed") else url
-            for entry in parsed.entries[:10]:
+            entries = getattr(parsed, "entries", [])
+            source_title = getattr(parsed, "feed", {}).get("title", url)
+            print(f"Parsed RSS url={url!r}, entries={len(entries)}")
+            for entry in entries[:10]:
                 title = entry.get("title", "No title")
-                summary = entry.get("summary", "")
+                summary = entry.get("summary") or entry.get("description", "") or ""
                 link = entry.get("link", "")
                 items.append(
                     {
