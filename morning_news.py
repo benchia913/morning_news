@@ -186,15 +186,16 @@ def main():
     rss_items = fetch_rss_items()
     if rss_items:
         rss_header = "RSS News Summary"
+        # Include human-readable headlines section
         rss_section = build_summary(rss_items, header=rss_header)
-        # Only include the AI summary in the final message to keep it concise.
+        all_sections.append(rss_section)
+
+        # Followed by the Claude summary for intuition/implications
         rss_claude = summarize_with_claude(rss_section, section_label=rss_header)
         if rss_claude:
-            all_sections.append(f"{rss_header} – AI Summary (Claude)")
+            all_sections.append("")
+            all_sections.append("AI Summary (Claude, RSS)")
             all_sections.append(rss_claude)
-        else:
-            all_sections.append(rss_header)
-            all_sections.append("No AI summary available today.")
     else:
         all_sections.append("No RSS items found. Please check RSS_FEEDS in your secrets.")
 
