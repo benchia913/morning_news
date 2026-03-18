@@ -48,7 +48,10 @@ def fetch_rss_items():
     items = []
     for url in urls:
         try:
-            parsed = feedparser.parse(url)
+            # Use requests with a timeout so a slow/broken feed can't hang the whole run
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            parsed = feedparser.parse(resp.content)
             entries = getattr(parsed, "entries", [])
             source_title = getattr(parsed, "feed", {}).get("title", url)
             print(f"Parsed RSS url={url!r}, entries={len(entries)}")
